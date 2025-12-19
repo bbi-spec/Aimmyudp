@@ -12,7 +12,7 @@ namespace MouseMovementLibraries.SendInputSupport
     {
         // --- CONFIGURATION ---
         // MUST MATCH YOUR PYTHON SERVER EXACTLY
-        private const string SERVER_IP = "192.168.1.100"; // CHANGE THIS
+        private const string SERVER_IP = "192.168.3.59"; // CHANGE THIS
         private const int SERVER_PORT = 5000;
         private const string FERNET_KEY = "6rQ32-s5w9D_g8L1z4M7v0P2k5N8j3X6y9R1c4B2m5A=";
 
