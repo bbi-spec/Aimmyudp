@@ -1,60 +1,69 @@
-﻿using System.Runtime.InteropServices;
+using System;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 
 namespace MouseMovementLibraries.SendInputSupport
 {
     internal class SendInputMouse
     {
-        // Admittedly written by ChatGPT, I accidentially had ChatGPT cook this up while asking it to rewrite some
-        // python script someone sent me over "Raw Input Manipulation" (never heard of it) and it came up with a SendInput Class
-        // I know I know, it's similar to Mouse Event, but I decided to add it anyways :shrug:
+        // --- CONFIGURATION ---
+        // [IMPORTANT] CHANGE THIS IP to your Gaming PC's IP Address
+        private const string SERVER_IP = "192.168.3.59"; 
+        private const int SERVER_PORT = 5000;
 
-        // Nori
+        private static UdpClient _udpClient;
+        private static IPEndPoint _endPoint;
 
-        [DllImport("user32.dll")]
-        private static extern void SendInput(int nInputs, INPUT[] pInputs, int cbSize);
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct INPUT
+        // Static constructor initializes the connection once when the app starts
+        static SendInputMouse()
         {
-            public int type;
-            public InputUnion U;
+            try
+            {
+                _udpClient = new UdpClient();
+                // Setup the destination (Gaming PC)
+                _endPoint = new IPEndPoint(IPAddress.Parse(SERVER_IP), SERVER_PORT);
+            }
+            catch
+            {
+                // Silently ignore setup errors to prevent crashing
+            }
         }
 
-        [StructLayout(LayoutKind.Explicit)]
-        private struct InputUnion
-        {
-            [FieldOffset(0)]
-            public MOUSEINPUT mi;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct MOUSEINPUT
-        {
-            public int dx;
-            public int dy;
-            public uint mouseData;
-            public uint dwFlags;
-            public uint time;
-            public IntPtr dwExtraInfo;
-        }
-
+        // Aimmy calls this function expecting to move the local mouse.
+        // We intercept it and send a packet instead.
         public static void SendMouseCommand(uint MouseCommand, int x = 0, int y = 0)
         {
-            INPUT input = new INPUT
-            {
-                type = 0,
-                U = new InputUnion
-                {
-                    mi = new MOUSEINPUT
-                    {
-                        dx = x,
-                        dy = y,
-                        dwFlags = MouseCommand
-                    }
-                }
-            };
+            if (_udpClient == null) return;
 
-            SendInput(1, [input], Marshal.SizeOf(typeof(INPUT)));
+            try
+            {
+                // --- 1. HANDLE MOVEMENT ---
+                // If Aimmy is trying to move the mouse (x or y is not 0)
+                if (x != 0 || y != 0)
+                {
+                    // Create a 4-byte packet [Short X] [Short Y]
+                    byte[] packet = new byte[4];
+                    BitConverter.GetBytes((short)x).CopyTo(packet, 0);
+                    BitConverter.GetBytes((short)y).CopyTo(packet, 2);
+
+                    // Send immediately to PC 2
+                    _udpClient.Send(packet, packet.Length, _endPoint);
+                }
+
+                // --- 2. HANDLE CLICKS ---
+                // MOUSEEVENTF_LEFTDOWN is usually 0x0002.
+                // We check if the command asks for a Left Click Down.
+                if ((MouseCommand & 0x0002) != 0)
+                {
+                    byte[] clickPacket = Encoding.ASCII.GetBytes("CLICK");
+                    _udpClient.Send(clickPacket, clickPacket.Length, _endPoint);
+                }
+            }
+            catch
+            {
+                // Ignore network errors so the aimbot doesn't freeze/lag
+            }
         }
     }
 }
